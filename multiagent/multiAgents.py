@@ -70,11 +70,38 @@ class ReflexAgent(Agent):
         successorGameState = currentGameState.generatePacmanSuccessor(action)
         newPos = successorGameState.getPacmanPosition()
         newFood = successorGameState.getFood()
+        newCapsules = successorGameState.getCapsules()
         newGhostStates = successorGameState.getGhostStates()
         newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
 
         "*** YOUR CODE HERE ***"
-        return successorGameState.getScore()
+
+        totalScore = successorGameState.getScore()
+
+        if len(newFood.asList()) != 0:
+            totalScore += 2 / min([manhattanDistance(food, newPos) for food in newFood.asList()])
+
+        if len(newCapsules) != 0:
+            totalScore += 3 / min([manhattanDistance(capsule, newPos) for capsule in newCapsules])
+
+        if len(newGhostStates) != 0:
+            closeGhost = 1000000
+            for idx, ghost in enumerate(newGhostStates):
+                if(newScaredTimes[idx] == 0):
+                    closeGhost = min(manhattanDistance(ghost.configuration.getPosition(), newPos), closeGhost)
+
+            if closeGhost != 0 and closeGhost != 1000000:
+                if closeGhost <= 1:
+                    totalScore -= 80 / closeGhost
+                if closeGhost <= 3:
+                    totalScore -= 20 / closeGhost
+                elif closeGhost <= 10:
+                    totalScore -= 8 / closeGhost
+
+        if action == Directions.STOP:
+            totalScore -= 200
+
+        return totalScore
 
 def scoreEvaluationFunction(currentGameState):
     """
@@ -129,7 +156,33 @@ class MinimaxAgent(MultiAgentSearchAgent):
             Returns the total number of agents in the game
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        def minmaxTree(currentGameState, currentDepth, totalDepth, numAgents):
+            if (currentGameState.isWin() or currentGameState.isLose() or currentDepth == totalDepth):
+                return (self.evaluationFunction(currentGameState), Directions.STOP)
+
+            legalMoves = currentGameState.getLegalActions(currentDepth % numAgents)
+
+            if (currentDepth % numAgents == 0):
+                agentScore, agentAction = -float("inf"), Directions.STOP
+            else:
+                agentScore, agentAction = float("inf"), Directions.STOP
+
+            for move in legalMoves:
+                newGameState = currentGameState.generateSuccessor(currentDepth % numAgents, move)
+                score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents)
+
+                if(currentDepth % numAgents == 0):
+                    if(score > agentScore or agentScore == -float("inf")):
+                        agentScore, agentAction = score, move
+                else:
+                    if(score < agentScore or agentScore == float("inf")):
+                        agentScore, agentAction = score, move
+
+            return (agentScore, agentAction)
+
+        scores = minmaxTree(gameState, 0, self.depth * gameState.getNumAgents(), gameState.getNumAgents())
+        return scores[1]
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
@@ -141,7 +194,44 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
           Returns the minimax action using self.depth and self.evaluationFunction
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        def minmaxTree(currentGameState, currentDepth, totalDepth, numAgents, alpha, beta):
+            if (currentGameState.isWin() or currentGameState.isLose() or currentDepth == totalDepth):
+                return (self.evaluationFunction(currentGameState), Directions.STOP)
+
+            legalMoves = currentGameState.getLegalActions(currentDepth % numAgents)
+
+            if (currentDepth % numAgents == 0):
+                agentScore, agentAction = -float("inf"), Directions.STOP
+            else:
+                agentScore, agentAction = float("inf"), Directions.STOP
+
+            for move in legalMoves:
+                newGameState = currentGameState.generateSuccessor(currentDepth % numAgents, move)
+                score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents, alpha, beta)
+
+                if(currentDepth % numAgents == 0):
+                    if(score > agentScore or agentScore == -float("inf")):
+                        agentScore, agentAction = score, move
+
+                    if (agentScore > beta):
+                        return (agentScore, agentAction)
+                    alpha = max(alpha, agentScore)
+
+                else:
+                    if(score < agentScore or agentScore == float("inf")):
+                        agentScore, agentAction = score, move
+
+                    if(agentScore < alpha):
+                        return (agentScore, agentAction)
+                    beta = min(beta, agentScore)
+
+            return (agentScore, agentAction)
+
+        alpha = -float("inf")
+        beta = float("inf")
+        scores = minmaxTree(gameState, 0, self.depth * gameState.getNumAgents(), gameState.getNumAgents(), alpha, beta)
+        return scores[1]
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
     """
