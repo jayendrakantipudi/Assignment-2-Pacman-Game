@@ -170,13 +170,13 @@ class MinimaxAgent(MultiAgentSearchAgent):
 
             for move in legalMoves:
                 newGameState = currentGameState.generateSuccessor(currentDepth % numAgents, move)
-                score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents)
+                score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents)[0]
 
                 if(currentDepth % numAgents == 0):
-                    if(score > agentScore or agentScore == -float("inf")):
+                    if(score > agentScore):
                         agentScore, agentAction = score, move
                 else:
-                    if(score < agentScore or agentScore == float("inf")):
+                    if(score < agentScore):
                         agentScore, agentAction = score, move
 
             return (agentScore, agentAction)
@@ -208,12 +208,11 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
 
             for move in legalMoves:
                 newGameState = currentGameState.generateSuccessor(currentDepth % numAgents, move)
-                score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents, alpha, beta)
+                score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents, alpha, beta)[0]
 
                 if(currentDepth % numAgents == 0):
                     if(score > agentScore or agentScore == -float("inf")):
                         agentScore, agentAction = score, move
-
                     if (agentScore > beta):
                         return (agentScore, agentAction)
                     alpha = max(alpha, agentScore)
@@ -221,14 +220,13 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
                 else:
                     if(score < agentScore or agentScore == float("inf")):
                         agentScore, agentAction = score, move
-
                     if(agentScore < alpha):
                         return (agentScore, agentAction)
                     beta = min(beta, agentScore)
 
             return (agentScore, agentAction)
 
-        alpha = -float("inf")
+        alpha = float("-inf")
         beta = float("inf")
         scores = minmaxTree(gameState, 0, self.depth * gameState.getNumAgents(), gameState.getNumAgents(), alpha, beta)
         return scores[1]
@@ -246,7 +244,35 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
           legal moves.
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        def minmaxTree(currentGameState, currentDepth, totalDepth, numAgents):
+            if (currentGameState.isWin() or currentGameState.isLose() or currentDepth == totalDepth):
+                return (self.evaluationFunction(currentGameState), Directions.STOP)
+
+            legalMoves = currentGameState.getLegalActions(currentDepth % numAgents)
+
+            if (currentDepth % numAgents == 0):
+                agentScore, agentAction = -float("inf"), Directions.STOP
+            else:
+                totalAgentScore, agentAction = 0, Directions.STOP
+
+            for move in legalMoves:
+                newGameState = currentGameState.generateSuccessor(currentDepth % numAgents, move)
+                score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents)[0]
+
+                if (currentDepth % numAgents == 0):
+                    if (score > agentScore):
+                        agentScore, agentAction = score, move
+                else:
+                    totalAgentScore += score
+
+            if currentDepth % numAgents != 0:
+                agentScore, agentAction = totalAgentScore / len(legalMoves), Directions.STOP
+
+            return (agentScore, agentAction)
+
+        scores = minmaxTree(gameState, 0, self.depth * gameState.getNumAgents(), gameState.getNumAgents())
+        return scores[1]
 
 def betterEvaluationFunction(currentGameState):
     """
