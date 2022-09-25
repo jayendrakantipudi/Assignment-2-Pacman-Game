@@ -67,37 +67,62 @@ class ReflexAgent(Agent):
         to create a masterful evaluation function.
         """
         # Useful information you can extract from a GameState (pacman.py)
+
+        # Successor game state of the current state after performing the action
         successorGameState = currentGameState.generatePacmanSuccessor(action)
-        newPos = successorGameState.getPacmanPosition()
-        newFood = successorGameState.getFood()
-        newCapsules = successorGameState.getCapsules()
-        newGhostStates = successorGameState.getGhostStates()
-        newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
+        newPos = successorGameState.getPacmanPosition() # New pacman position
+        newFood = successorGameState.getFood() # New positions of food
+        newCapsules = successorGameState.getCapsules() # New positions of capsules
+        newGhostStates = successorGameState.getGhostStates() # new positions of ghosts
+        newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates] # new scared times of ghosts
 
         "*** YOUR CODE HERE ***"
 
-        totalScore = successorGameState.getScore()
+        totalScore = successorGameState.getScore() # Base score of the successor game state
 
+        """
+        If food is present adding the reciprocal of manhattan distance of the closest food with a factor of 2
+        Reciprocal ensures the score be higher for smaller distances so the pacman moves to closer food
+        """
         if len(newFood.asList()) != 0:
             totalScore += 2 / min([manhattanDistance(food, newPos) for food in newFood.asList()])
 
+        """
+        If capsule is present adding the reciprocal of manhattan distance of the closest capsule with a factor of 3
+        Capsule has a higher preference than food with this slightly higher factor as having capsule will 
+        remove the effect of ghosts for some time
+        """
         if len(newCapsules) != 0:
             totalScore += 3 / min([manhattanDistance(capsule, newPos) for capsule in newCapsules])
 
+
         if len(newGhostStates) != 0:
-            closeGhost = 1000000
+            closeGhost = float("inf")
             for idx, ghost in enumerate(newGhostStates):
+                """
+                Considering only the ghosts with scared time 0. Other ghosts can't attack the pacman
+                So considering those ghosts is unecessary
+                """
                 if(newScaredTimes[idx] == 0):
                     closeGhost = min(manhattanDistance(ghost.configuration.getPosition(), newPos), closeGhost)
 
-            if closeGhost != 0 and closeGhost != 1000000:
+            """
+            Subtracting the reciprocal of closest ghost with a very high factor compared to food.
+            Pacman staying alive is highly necessary than eating food.
+            """
+            if closeGhost != 0:
+                # Penalizing very highly when the ghost is just beside
                 if closeGhost <= 1:
                     totalScore -= 80 / closeGhost
-                if closeGhost <= 3:
+                # Moderately penalizing when within manhattan distance limit of 3
+                elif closeGhost <= 3:
                     totalScore -= 20 / closeGhost
+                # Regular penalizing when within manhattan distance limit of 10
                 elif closeGhost <= 10:
                     totalScore -= 8 / closeGhost
+                # Not penalizing for larger distances as pacman can freely move when ghosts are this far
 
+        # Avoiding the STOP action as much a possible
         if action == Directions.STOP:
             totalScore -= 200
 
@@ -157,32 +182,62 @@ class MinimaxAgent(MultiAgentSearchAgent):
         """
         "*** YOUR CODE HERE ***"
 
+        """
+        MinmaxTree recursive function
+        
+        NOTE: the move taken by the inner depth nodes doesn't matter. Only the score is necessary.
+        However the move of max agent is needed, so included within the function. For this reason,
+        thought the base case returns STOP action it doesn't effect.
+        
+        Whenever current depth is a multiple of agents count, it is a max agent
+        
+        Inputs 
+            currentGameState - game state the function is processing in current iteration
+            currentDepth - the depth of the tree in the current iteration
+            totalDepth - maximum possible depth of tree
+            numAgents - total number of agents in the current game state
+        
+        Output
+            (score, action) - action to be taken by the pacman, score for this action
+        """
         def minmaxTree(currentGameState, currentDepth, totalDepth, numAgents):
+            """
+            Base case: whenever the state is win, loss or the tree depth reaches maximum, returning
+            the evaluation score of the current state with STOP move
+            """
             if (currentGameState.isWin() or currentGameState.isLose() or currentDepth == totalDepth):
                 return (self.evaluationFunction(currentGameState), Directions.STOP)
 
+            # All possible moves from the current state for the current agent
             legalMoves = currentGameState.getLegalActions(currentDepth % numAgents)
 
+            # current depth is a multiple of number of agents to it is a max agent (pacman)
+            # Initializing agent score and agent action values
             if (currentDepth % numAgents == 0):
-                agentScore, agentAction = -float("inf"), Directions.STOP
+                agentScore, agentAction = -float("inf"), Directions.STOP # Least score for maximizing
             else:
-                agentScore, agentAction = float("inf"), Directions.STOP
+                agentScore, agentAction = float("inf"), Directions.STOP # Max score for minimizing
 
+            # Iterating over the moves for this agent
             for move in legalMoves:
+                # New game state for after making the move
                 newGameState = currentGameState.generateSuccessor(currentDepth % numAgents, move)
+                # Recursively getting scores of child game states
                 score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents)[0]
 
                 if(currentDepth % numAgents == 0):
-                    if(score > agentScore):
+                    if(score > agentScore): # Storing max score and action for max agent
                         agentScore, agentAction = score, move
                 else:
-                    if(score < agentScore):
+                    if(score < agentScore): # Storing min score and value for min agent
                         agentScore, agentAction = score, move
 
+            # Returning the appropriate score for the current agent and action
             return (agentScore, agentAction)
 
+        # Main call to the recursive function
         scores = minmaxTree(gameState, 0, self.depth * gameState.getNumAgents(), gameState.getNumAgents())
-        return scores[1]
+        return scores[1] # Returning the action
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
@@ -195,6 +250,10 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         """
         "*** YOUR CODE HERE ***"
 
+        """
+        The minmax tree function from the minimax agent has been used here.
+        Additional parameters of alpha and beta have been taken for pruning.
+        """
         def minmaxTree(currentGameState, currentDepth, totalDepth, numAgents, alpha, beta):
             if (currentGameState.isWin() or currentGameState.isLose() or currentDepth == totalDepth):
                 return (self.evaluationFunction(currentGameState), Directions.STOP)
@@ -211,21 +270,29 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
                 score = minmaxTree(newGameState, currentDepth + 1, totalDepth, numAgents, alpha, beta)[0]
 
                 if(currentDepth % numAgents == 0):
-                    if(score > agentScore or agentScore == -float("inf")):
+                    if score > agentScore:
                         agentScore, agentAction = score, move
                     if (agentScore > beta):
+                        # Returning current score if max score gets larger than beta for max agent
                         return (agentScore, agentAction)
+                    # Updating alpha value with max score for max agent
                     alpha = max(alpha, agentScore)
 
                 else:
-                    if(score < agentScore or agentScore == float("inf")):
+                    if score < agentScore:
                         agentScore, agentAction = score, move
                     if(agentScore < alpha):
+                        # Returning current score if min score gets lower than alpha for min agent
                         return (agentScore, agentAction)
+                    # Updating beta value with min score for min agent
                     beta = min(beta, agentScore)
 
             return (agentScore, agentAction)
 
+        """
+        Initial values of alpha and beta of infinity and negative infinity 
+        respectively for the root max agent of the tree
+        """
         alpha = float("-inf")
         beta = float("inf")
         scores = minmaxTree(gameState, 0, self.depth * gameState.getNumAgents(), gameState.getNumAgents(), alpha, beta)
@@ -245,6 +312,7 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
         """
         "*** YOUR CODE HERE ***"
 
+        # The minmax tree function from the minimax agent has been used here.
         def minmaxTree(currentGameState, currentDepth, totalDepth, numAgents):
             if (currentGameState.isWin() or currentGameState.isLose() or currentDepth == totalDepth):
                 return (self.evaluationFunction(currentGameState), Directions.STOP)
@@ -254,6 +322,7 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
             if (currentDepth % numAgents == 0):
                 agentScore, agentAction = -float("inf"), Directions.STOP
             else:
+                # Instead of storing the least agent score, the sum of scores is being stored for min agent
                 totalAgentScore, agentAction = 0, Directions.STOP
 
             for move in legalMoves:
@@ -262,10 +331,16 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
 
                 if (currentDepth % numAgents == 0):
                     if (score > agentScore):
+                        # Storing the max score for max agent as usual
                         agentScore, agentAction = score, move
                 else:
+                    # Adding new score to the total score for the min agent
                     totalAgentScore += score
 
+            """
+            If agent in current iteration is min agent returning the average score as the score for this iteration. 
+            Since the move doesnt matter for greater depths returning STOP action as a placeholder. 
+            """
             if currentDepth % numAgents != 0:
                 agentScore, agentAction = totalAgentScore / len(legalMoves), Directions.STOP
 
